@@ -68,22 +68,15 @@ A CloudWatch log group (/aws/soc/logs) is configured to trigger the Lambda funct
 This enables real-time processing of incoming log events without manual execution.
 
 ## Execution Evidence
+
 Lambda Execution (Start)
-
 Threat Intelligence Output
-
 These logs confirm:
-
 Successful Lambda invocation
-
 IOC extraction and parsing
-
 VirusTotal enrichment
-
 Structured output generation
-
 Threat Intelligence Integration
-
 The function integrates with the VirusTotal v3 API to enrich detected IOCs.
 
 ## Configuration
@@ -96,13 +89,15 @@ VT_API_KEY	Your VirusTotal API key
 ## Enrichment Output
 
 Each IOC is evaluated and assigned:
-
 malicious (number of vendor detections)
-
 suspicious (number of suspicious flags)
 
 reputation (clean, suspicious, or malicious)
 =======
-# ai-soc-log-analyzer
-Serverless SOC log analysis pipeline with MITRE ATT&amp;CK mapping and VirusTotal threat intelligence enrichment.
-7f6a7afc5f3e03f4a3940a531e7777a292efe056
+Summary
+
+This project demonstrates a cloud-native SOC pipeline capable of:
+Automated log ingestion via CloudWatch
+Detection logic using MITRE ATT&CK mapping
+Threat intelligence enrichment using VirusTotal
+Structured, analyst-ready output
