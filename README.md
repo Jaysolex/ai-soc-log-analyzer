@@ -94,6 +94,47 @@ suspicious (number of suspicious flags)
 
 reputation (clean, suspicious, or malicious)
 =======
+## Critical Threat Detection (SOC Simulation)
+The system was tested using a simulated attack log containing PowerShell execution, a known malicious hash, and suspicious network indicators.
+
+## Detection Result
+```
+{
+  "severity": "Critical",
+  "technique": "T1059.001",
+  "iocs": {
+    "ips": ["185.220.101.1"],
+    "domains": ["badsite.ru"],
+    "hashes": ["44d88612fea8a8f36de82e1278abb02f"]
+  },
+  "threat_intel": {
+    "185.220.101.1": {
+      "malicious": 15,
+      "suspicious": 3,
+      "reputation": "malicious"
+    },
+    "44d88612fea8a8f36de82e1278abb02f": {
+      "malicious": 67,
+      "suspicious": 0,
+      "reputation": "malicious"
+    }
+  },
+  "s3_upload": {
+    "status": "saved"
+  }
+}
+
+```
+## Key Outcomes
+
+Detected suspicious PowerShell activity mapped to MITRE ATT&CK (T1059.001)
+Extracted multiple IOCs (IP, domain, file hash)
+Enriched indicators using VirusTotal threat intelligence
+Identified high-confidence malicious hash (67 vendor detections)
+Automatically escalated severity to Critical
+Persisted results to Amazon S3 for further analysis
+
+=======
 Summary
 
 This project demonstrates a cloud-native SOC pipeline capable of:
