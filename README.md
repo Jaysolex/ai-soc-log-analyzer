@@ -1,3 +1,4 @@
+
 # AI SOC Log Analyzer
 
 This project implements a serverless SOC (Security Operations Center) log analysis pipeline using AWS Lambda and CloudWatch.
@@ -101,3 +102,7 @@ malicious (number of vendor detections)
 suspicious (number of suspicious flags)
 
 reputation (clean, suspicious, or malicious)
+=======
+# ai-soc-log-analyzer
+Serverless SOC log analysis pipeline with MITRE ATT&amp;CK mapping and VirusTotal threat intelligence enrichment.
+7f6a7afc5f3e03f4a3940a531e7777a292efe056
