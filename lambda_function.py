@@ -1,3 +1,4 @@
+import boto3
 import json
 import re
 import os
@@ -7,6 +8,9 @@ from datetime import datetime
 # 🔐 Secure API key from environment
 VT_API_KEY = os.getenv("VT_API_KEY", "")
 
+s3 = boto3.client("s3")
+
+BUCKET_NAME = "ai-soc-analysis-results-solomonjames"
 
 # ---------------------------
 # IOC EXTRACTION
@@ -83,6 +87,28 @@ def vt_lookup(ioc_type, value):
         return {"error": str(e)}
 
 
+def save_to_s3(data):
+    try:
+        filename = f"analysis-{datetime.utcnow().isoformat()}.json"
+
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=f"analysis-results/{filename}",
+            Body=json.dumps(data),
+            ContentType="application/json"
+        )
+
+        return {
+            "status": "saved",
+            "file": filename
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e)
+        }
+
+
 # ---------------------------
 # MAIN HANDLER
 # ---------------------------
@@ -121,9 +147,14 @@ def lambda_handler(event, context):
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
+#  S3 SAVE (FIXED POSITION)
+    s3_result = save_to_s3(response)
+    response["s3_upload"] = s3_result
+
     print("Analysis complete:", json.dumps(response, indent=2))
 
     return {
         "statusCode": 200,
         "body": json.dumps(response)
     }
+    
