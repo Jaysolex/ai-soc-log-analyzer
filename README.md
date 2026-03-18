@@ -135,6 +135,7 @@ Automatically escalated severity to Critical
 Persisted results to Amazon S3 for further analysis
 
 =======
+
 Summary
 
 This project demonstrates a cloud-native SOC pipeline capable of:
