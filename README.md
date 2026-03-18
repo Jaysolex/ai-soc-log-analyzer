@@ -161,7 +161,8 @@ The system was tested using a simulated attack log containing PowerShell executi
 - Produces structured output suitable for SIEM ingestion and correlation
 - Simulates a real SOC pipeline from ingestion to detection and response
 - Aligns alerts with MITRE ATT and CK for standardized threat classification
-=======
+
+  
 
 ## Summary
 
