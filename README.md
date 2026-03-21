@@ -155,7 +155,8 @@ The system was tested using a simulated attack log containing PowerShell executi
 - Identified high-confidence malicious hash (67 vendor detections)
 - Automatically escalated severity to Critical
 - Persisted results to Amazon S3 for further analysis
-=======
+
+
 ## SOC Value
 
 - Reduces analyst triage time through automated IOC extraction
