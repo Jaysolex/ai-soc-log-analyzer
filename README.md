@@ -114,7 +114,7 @@ suspicious (number of suspicious flags)
 
 reputation (clean, suspicious, or malicious)
 
-=======
+
 
 ## Critical Threat Detection (SOC Simulation)
 The system was tested using a simulated attack log containing PowerShell execution, a known malicious hash, and suspicious network indicators.
