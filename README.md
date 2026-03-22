@@ -1,172 +1,125 @@
+# AI SOC Log Analyzer — Production Grade
 
-# AI SOC Log Analyzer
-
-This project implements a serverless SOC log analysis pipeline using AWS Lambda and CloudWatch. It processes log events, extracts indicators of compromise, maps activity to MITRE ATT&CK techniques, and enriches findings using the VirusTotal API. The pipeline simulates real world SOC workflows including detection, triage, and threat intelligence integration. and Reducing MTTR, faster IOC indications and reducing manual SOC tasks
-
-## Overview
-
-The Lambda function performs automated analysis of incoming log data with the following capabilities:
-
-- IOC extraction including IP addresses, domains, and file hashes  
-- MITRE ATT and CK technique mapping based on behavioral indicators  
-- Threat intelligence enrichment using VirusTotal  
-- Structured JSON output for downstream analysis and logging  
-
-The system is triggered automatically by CloudWatch Logs, enabling real time log ingestion and processing without manual intervention.
+Serverless AI-powered Security Operations Center built on AWS Lambda with real-time threat detection, multi-source threat intelligence enrichment, and automated alerting across email and Slack.
 
 ## Architecture
+```
+Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping → Threat Intel Enrichment → CloudWatch Logs + SNS Email + Slack Alert
+```
 
-CloudWatch Logs to AWS Lambda to IOC extraction to MITRE mapping to VirusTotal enrichment to structured JSON output to S3 storage
+## Features
 
-This architecture simulates a cloud native SOC pipeline for ingestion, detection, enrichment, and storage.
+- Modular detection engine across process behavior, network anomalies, and cloud identity
+- MITRE ATT&CK technique mapping (T1059.001, T1046)
+- Real-time threat intel enrichment via AbuseIPDB, VirusTotal, and Shodan
+- Structured CloudWatch logging with full IOC breakdown
+- SNS email alerts for High severity findings
+- Slack alerts to #soc-alerts channel
+- Serverless — runs on AWS Lambda, costs pennies per execution
 
-## Detection and Analysis Logic
+## Detection Modules
 
-Detection logic is based on identifying suspicious behavior and mapping it to known adversary techniques:
+| Module | Description | MITRE Technique |
+|--------|-------------|-----------------|
+| process_behavior.py | Detects suspicious PowerShell execution | T1059.001 |
+| network_anomalies.py | Detects port scanning activity | T1046 |
+| cloud_identity.py | Detects identity anomalies | T1078 |
+| enrichment.py | AbuseIPDB, VirusTotal, Shodan enrichment | N/A |
+| automation.py | Correlates and deduplicates findings | N/A |
 
-- PowerShell execution with suspicious flags such as nop and hidden mapped to T1059.001  
-- Detection of known malicious file hashes indicating confirmed compromise  
-- Identification of suspicious IP addresses and domains as network indicators  
+## Threat Intelligence
 
-Severity is assigned based on risk:
+| Source | Data Returned |
+|--------|--------------|
+| AbuseIPDB | Abuse score, country, total reports, Tor exit node |
+| VirusTotal | Malicious, suspicious, harmless vendor counts |
+| Shodan | Open ports, org, country, known vulnerabilities |
 
-- Informational for clean indicators  
-- Medium for suspicious activity  
-- High for confirmed malicious indicators  
-- Critical for multiple high confidence indicators such as malicious hash and command and control IP  
+## Alerting
 
-## Project Structure
+| Channel | Trigger |
+|---------|---------|
+| CloudWatch Logs | Every Lambda execution |
+| SNS Email | High severity findings |
+| Slack #soc-alerts | High severity findings |
 
-| File | Description |
-|------|------------|
-| lambda_function.py | Core Lambda logic for IOC extraction, MITRE mapping, and threat intelligence enrichment |
-| test_logs.json | Sample input events for testing |
-| README.md | Project documentation |
-| screenshots | Execution and validation evidence |
-
-## Example Input
-
+## Example Test Input
 ```json
 {
-  "log": "powershell -nop connecting to 8.8.8.8 domain example.com hash d41d8cd98f00b204e9800998ecf8427e"
+  "log": "2026-03-22T04:00:00Z CRITICAL user=admin src_ip=185.22.45.90 dst=badsite.ru action=ConsoleLogin status=Failed attempts=10 process=powershell.exe args='-nop -w hidden -enc JABjAGwAaQBlAG4AdA' child_process=nmap parent=cmd.exe country=RU"
 }
 ```
-Example Output
 
-```
+## Example Output
+```json
 {
-  "severity": "Informational",
-  "technique": "Unknown",
-  "summary": "SOC analysis with threat intel enrichment",
-  "iocs": {
-    "ips": ["8.8.8.8"],
-    "domains": ["example.com"],
-    "hashes": ["d41d8cd98f00b204e9800998ecf8427e"]
+  "statusCode": 200,
+  "summary": {
+    "timestamp": "2026-03-22T13:33:59",
+    "total_findings": 3
   },
-  "threat_intel": {
-    "8.8.8.8": {
-      "malicious": 0,
-      "suspicious": 0,
-      "reputation": "clean"
+  "results": [
+    {
+      "severity": "High",
+      "technique": "T1059.001",
+      "description": "Suspicious PowerShell execution with obfuscation or encoded command.",
+      "mitre_phase": "Execution",
+      "threat_intel": {
+        "185.22.45.90": {
+          "abuseipdb": {"abuse_score": 0, "country": "DE", "total_reports": 0, "is_tor": false},
+          "virustotal": {"malicious": 0, "suspicious": 0, "harmless": 0}
+        },
+        "badsite.ru": {
+          "virustotal": {"malicious": 0, "suspicious": 1, "harmless": 58}
+        }
+      }
     }
-  },
-  "timestamp": "2026-03-17T"
+  ]
 }
 ```
-## CloudWatch Integration
 
-A CloudWatch log group (/aws/soc/logs) is configured to trigger the Lambda function automatically.
-This enables real-time processing of incoming log events without manual execution.
+## Environment Variables
 
-## Threat Intelligence Integration
-The pipeline integrates with the VirusTotal API to enrich detected indicators. Each IOC is evaluated and assigned:
-Malicious count based on vendor detections
-Suspicious count
-Reputation classification such as clean, suspicious, or malicious
+| Key | Description |
+|-----|-------------|
+| ABUSEIPDB_KEY | AbuseIPDB API key |
+| VIRUSTOTAL_KEY | VirusTotal API key |
+| SHODAN_KEY | Shodan API key |
+| SNS_TOPIC_ARN | AWS SNS topic ARN for email alerts |
+| SLACK_WEBHOOK_URL | Slack incoming webhook URL |
 
 ## Execution Evidence
 
-Lambda Execution (Start)
-Threat Intelligence Output
-These logs confirm:
-Successful Lambda invocation
-IOC extraction and parsing
-VirusTotal enrichment
-Structured output generation
-Threat Intelligence Integration
-The function integrates with the VirusTotal v3 API to enrich detected IOCs.
+### Lambda Test Success
+![Lambda test success](screenshots/Lambda%20test%20success%20response.png)
 
-##Critical Threat Detection Simulation
-The system was tested using a simulated attack containing PowerShell execution, malicious hash values, and suspicious network indicators.
+### Lambda Environment Variables
+![Lambda environment variables](screenshots/Lambda%20environment%20variables%20showing%20all%20API%20keys%20configured.png)
 
-## Configuration
+### CloudWatch Structured Logs
+![CloudWatch logs A](screenshots/CloudWatch%20logs%20structured%20output%20A.png)
+![CloudWatch logs B](screenshots/CloudWatch%20logs%20structured%20output%20B.png)
+![CloudWatch logs C](screenshots/CloudWatch%20logs%20structured%20output%20C.png)
+![CloudWatch logs D](screenshots/CloudWatch%20logs%20structured%20output%20D.png)
 
-Set the following environment variable in Lambda:
+### Gmail HIGH SEVERITY Alert
+![Gmail alert](screenshots/Gmail%20HIGH%20SEVERITY%20alert.png)
 
-Key	Value
-VT_API_KEY	Your VirusTotal API key
-
-## Enrichment Output
-
-Each IOC is evaluated and assigned:
-malicious (number of vendor detections)
-suspicious (number of suspicious flags)
-
-reputation (clean, suspicious, or malicious)
-
-
-
-## Critical Threat Detection (SOC Simulation)
-The system was tested using a simulated attack log containing PowerShell execution, a known malicious hash, and suspicious network indicators.
-
-## Detection Result
-```
-{
-  "severity": "Critical",
-  "technique": "T1059.001",
-  "iocs": {
-    "ips": ["185.220.101.1"],
-    "domains": ["badsite.ru"],
-    "hashes": ["44d88612fea8a8f36de82e1278abb02f"]
-  },
-  "threat_intel": {
-    "185.220.101.1": {
-      "malicious": 15,
-      "suspicious": 3,
-      "reputation": "malicious"
-    },
-    "44d88612fea8a8f36de82e1278abb02f": {
-      "malicious": 67,
-      "suspicious": 0,
-      "reputation": "malicious"
-    }
-  },
-  "s3_upload": {
-    "status": "saved"
-  }
-}
-
-```
-## Key Outcomes
-
-- Detected suspicious PowerShell activity mapped to MITRE ATT&CK (T1059.001)
-- Extracted multiple IOCs (IP, domain, file hash)
-- Enriched indicators using VirusTotal threat intelligence
-- Identified high-confidence malicious hash (67 vendor detections)
-- Automatically escalated severity to Critical
-- Persisted results to Amazon S3 for further analysis
-
+### Slack #soc-alerts Alert
+![Slack alert](screenshots/Slack%20%23soc-alerts%20alert%20.png)
 
 ## SOC Value
 
 - Reduces analyst triage time through automated IOC extraction
-- Enhances detection accuracy using threat intelligence enrichment
+- Enhances detection accuracy using three threat intelligence sources
 - Produces structured output suitable for SIEM ingestion and correlation
-- Simulates a real SOC pipeline from ingestion to detection and response
-- Aligns alerts with MITRE ATT and CK for standardized threat classification
-
-  
+- Real-time alerting via email and Slack for immediate response
+- Aligns detections with MITRE ATT&CK for standardized threat classification
+- Fully serverless — no infrastructure to manage
 
 ## Summary
 
-This project demonstrates a cloud native SOC pipeline capable of automated log ingestion, detection engineering, threat intelligence enrichment, and structured alert generation aligned with enterprise SOC operations.
+This project demonstrates a production-grade cloud native SOC pipeline capable of automated log ingestion, modular detection engineering, multi-source threat intelligence enrichment, and real-time alerting aligned with enterprise SOC operations.
+
+## Author
+Solomon James — CyberSOLEX
