@@ -9,23 +9,34 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 
 ## Features
 
-- Modular detection engine across process behavior, network anomalies, and cloud identity
-- MITRE ATT&CK technique mapping (T1059.001, T1046)
+- 6 modular detection engines covering the full attack chain
+- MITRE ATT&CK technique mapping across 5 tactics
 - Real-time threat intel enrichment via AbuseIPDB, VirusTotal, and Shodan
 - Structured CloudWatch logging with full IOC breakdown
-- SNS email alerts for High severity findings
+- SNS email alerts for High and Critical severity findings
 - Slack alerts to #soc-alerts channel
 - Serverless — runs on AWS Lambda, costs pennies per execution
 
 ## Detection Modules
 
-| Module | Description | MITRE Technique |
-|--------|-------------|-----------------|
-| process_behavior.py | Detects suspicious PowerShell execution | T1059.001 |
-| network_anomalies.py | Detects port scanning activity | T1046 |
-| cloud_identity.py | Detects identity anomalies | T1078 |
-| enrichment.py | AbuseIPDB, VirusTotal, Shodan enrichment | N/A |
-| automation.py | Correlates and deduplicates findings | N/A |
+| Module | Description | MITRE Technique | Tactic |
+|--------|-------------|-----------------|--------|
+| [process_behavior.py](detections/process_behavior.py) | Detects suspicious PowerShell execution | T1059.001 | Execution |
+| [network_anomalies.py](detections/network_anomalies.py) | Detects port scanning activity | T1046 | Discovery |
+| [cloud_identity.py](detections/cloud_identity.py) | Detects identity anomalies | T1078 | Defense Evasion |
+| [ransomware.py](detections/ransomware.py) | Detects ransomware behavior | T1486 | Impact |
+| [exfiltration.py](detections/exfiltration.py) | Detects data exfiltration attempts | T1041 | Exfiltration |
+| [lateral_movement.py](detections/lateral_movement.py) | Detects lateral movement (PsExec, Mimikatz, RDP) | T1021 | Lateral Movement |
+| [enrichment.py](detections/enrichment.py) | AbuseIPDB, VirusTotal, Shodan enrichment | N/A | N/A |
+| [automation.py](detections/automation.py) | Correlates and deduplicates findings | N/A | N/A |
+
+## Core Files
+
+| File | Description |
+|------|-------------|
+| [lambda_function.py](lambda_function.py) | Main Lambda handler with SNS + Slack alerting |
+| [mitre_mapping.json](mitre_mapping.json) | MITRE ATT&CK technique definitions |
+| [test_logs.json](test_logs.json) | Sample test log events |
 
 ## Threat Intelligence
 
@@ -40,42 +51,34 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 | Channel | Trigger |
 |---------|---------|
 | CloudWatch Logs | Every Lambda execution |
-| SNS Email | High severity findings |
-| Slack #soc-alerts | High severity findings |
+| SNS Email | High and Critical severity findings |
+| Slack #soc-alerts | High and Critical severity findings |
 
-## Example Test Input
+## Full Attack Chain Simulation
+
+The system was tested using a simulated APT attack log triggering all 6 detection modules simultaneously.
+
+### Test Input
 ```json
 {
-  "log": "2026-03-22T04:00:00Z CRITICAL user=admin src_ip=185.22.45.90 dst=badsite.ru action=ConsoleLogin status=Failed attempts=10 process=powershell.exe args='-nop -w hidden -enc JABjAGwAaQBlAG4AdA' child_process=nmap parent=cmd.exe country=RU"
+  "log": "2026-03-22T15:00:00Z user=admin src_ip=185.22.45.90 dst=badsite.ru powershell -nop -w hidden vssadmin delete shadows bcdedit /set recoveryenabled no wmic shadowcopy delete psexec mimikatz net use curl -d pastebin.com nmap rdesktop"
 }
 ```
 
-## Example Output
-```json
-{
-  "statusCode": 200,
-  "summary": {
-    "timestamp": "2026-03-22T13:33:59",
-    "total_findings": 3
-  },
-  "results": [
-    {
-      "severity": "High",
-      "technique": "T1059.001",
-      "description": "Suspicious PowerShell execution with obfuscation or encoded command.",
-      "mitre_phase": "Execution",
-      "threat_intel": {
-        "185.22.45.90": {
-          "abuseipdb": {"abuse_score": 0, "country": "DE", "total_reports": 0, "is_tor": false},
-          "virustotal": {"malicious": 0, "suspicious": 0, "harmless": 0}
-        },
-        "badsite.ru": {
-          "virustotal": {"malicious": 0, "suspicious": 1, "harmless": 58}
-        }
-      }
-    }
-  ]
-}
+### Detection Results
+
+| Finding | Severity | Technique | Phase | Alert |
+|---------|----------|-----------|-------|-------|
+| PowerShell execution | High | T1059.001 | Execution | SNS + Slack |
+| Port scanning | Medium | T1046 | Discovery | — |
+| Identity check | Informational | — | — | — |
+| Ransomware behavior | Critical | T1486 | Impact | SNS + Slack |
+| Data exfiltration | Critical | T1041 | Exfiltration | SNS + Slack |
+| Lateral movement | Critical | T1021 | Lateral Movement | SNS + Slack |
+
+### Full Attack Chain Detected
+```
+Execution → Discovery → Lateral Movement → Exfiltration → Ransomware (Impact)
 ```
 
 ## Environment Variables
@@ -96,30 +99,36 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 ### Lambda Environment Variables
 ![Lambda environment variables](screenshots/Lambda%20environment%20variables%20showing%20all%20API%20keys%20configured.png)
 
+### CloudWatch Critical Detections
+![CloudWatch critical](screenshots/Cloudwatch_Critical%20.png)
+
 ### CloudWatch Structured Logs
 ![CloudWatch logs A](screenshots/CloudWatch%20logs%20structured%20output%20A.png)
 ![CloudWatch logs B](screenshots/CloudWatch%20logs%20structured%20output%20B.png)
 ![CloudWatch logs C](screenshots/CloudWatch%20logs%20structured%20output%20C.png)
 ![CloudWatch logs D](screenshots/CloudWatch%20logs%20structured%20output%20D.png)
 
-### Gmail HIGH SEVERITY Alert
-![Gmail alert](screenshots/Gmail%20HIGH%20SEVERITY%20alert.png)
+### Gmail Alerts
+![Gmail HIGH SEVERITY alert](screenshots/Gmail%20HIGH%20SEVERITY%20alert.png)
+![Gmail full alert](screenshots/Gmail%20Full%20Alert.png)
 
-### Slack #soc-alerts Alert
+### Slack #soc-alerts
 ![Slack alert](screenshots/Slack%20%23soc-alerts%20alert%20.png)
+![Slack full alert](screenshots/SLACK%20ALART%20full.png)
 
 ## SOC Value
 
+- Detects full APT attack chain from execution to impact in a single log analysis
 - Reduces analyst triage time through automated IOC extraction
 - Enhances detection accuracy using three threat intelligence sources
 - Produces structured output suitable for SIEM ingestion and correlation
-- Real-time alerting via email and Slack for immediate response
+- Real-time alerting via email and Slack for immediate SOC response
 - Aligns detections with MITRE ATT&CK for standardized threat classification
 - Fully serverless — no infrastructure to manage
 
 ## Summary
 
-This project demonstrates a production-grade cloud native SOC pipeline capable of automated log ingestion, modular detection engineering, multi-source threat intelligence enrichment, and real-time alerting aligned with enterprise SOC operations.
+This project demonstrates a production-grade cloud native SOC pipeline capable of automated log ingestion, modular detection engineering across 6 attack techniques, multi-source threat intelligence enrichment, and real-time alerting aligned with enterprise SOC operations.
 
 ## Author
 Solomon James — CyberSOLEX
