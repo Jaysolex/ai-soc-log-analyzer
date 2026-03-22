@@ -1,10 +1,10 @@
 # AI SOC Log Analyzer — Production Grade
 
-Serverless AI-powered Security Operations Center built on AWS Lambda with real-time threat detection, multi-source threat intelligence enrichment, automated alerting, and auto-remediation via AWS WAF.
+Serverless AI-powered Security Operations Center built on AWS Lambda with real-time threat detection, multi-source threat intelligence enrichment, automated alerting, auto-remediation via AWS WAF, and persistent S3 storage.
 
 ## Architecture
 ```
-Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping → Threat Intel Enrichment → CloudWatch Logs + SNS Email + Slack Alert + WAF Auto-Block
+Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping → Threat Intel Enrichment → CloudWatch Logs + SNS Email + Slack Alert + WAF Auto-Block + S3 Storage
 ```
 
 ## Features
@@ -17,6 +17,8 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 - Slack alerts to #soc-alerts channel
 - CloudTrail integration for real AWS activity monitoring
 - Auto-remediation via AWS WAF — automatically blocks malicious IPs on Critical findings
+- S3 persistent storage for all findings with date-based organization
+- Live CloudWatch dashboard for SOC pipeline monitoring
 - Serverless — runs on AWS Lambda, costs pennies per execution
 
 ## Detection Modules
@@ -36,7 +38,7 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 
 | File | Description |
 |------|-------------|
-| [lambda_function.py](lambda_function.py) | Main Lambda handler with SNS + Slack + WAF alerting |
+| [lambda_function.py](lambda_function.py) | Main Lambda handler with SNS + Slack + WAF + S3 |
 | [mitre_mapping.json](mitre_mapping.json) | MITRE ATT&CK technique definitions |
 | [test_logs.json](test_logs.json) | Sample test log events |
 
@@ -56,6 +58,7 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 | SNS Email | High and Critical severity findings |
 | Slack #soc-alerts | High and Critical severity findings |
 | AWS WAF Auto-Block | Critical severity findings — IP blocked automatically |
+| S3 Storage | Every execution — findings saved as JSON |
 
 ## Full Attack Chain Simulation
 
@@ -102,6 +105,24 @@ Critical Finding Detected → Extract IOCs → Block IP in WAF IP Set → Log Ac
 
 This reduces attacker dwell time from hours to milliseconds — a key L3 SOC capability. The system is smart enough to check if an IP is already blocked before attempting to add it, preventing duplicate entries.
 
+## S3 Findings Storage
+
+Every SOC analysis result is automatically persisted to Amazon S3 in structured JSON format, organized by date for easy retrieval and future analysis.
+```
+Detection Complete → Save JSON to S3 → soc-findings/YYYY/MM/DD/HH-MM-SS.json
+```
+
+This creates a permanent audit trail of all detections and enables future integration with analytics tools like AWS Athena or QuickSight.
+
+## Live SOC Dashboard
+
+A CloudWatch dashboard provides real-time visibility into SOC pipeline health and activity across Lambda executions, SNS alerts, and invocation trends.
+
+### Metrics Monitored
+- Lambda invocations, errors, and duration
+- SNS messages published and delivered
+- Invocation trends over time
+
 ## Environment Variables
 
 | Key | Description |
@@ -113,6 +134,7 @@ This reduces attacker dwell time from hours to milliseconds — a key L3 SOC cap
 | SLACK_WEBHOOK_URL | Slack incoming webhook URL |
 | WAF_IP_SET_ID | AWS WAF IP set ID for auto-blocking |
 | WAF_IP_SET_ARN | AWS WAF IP set ARN |
+| S3_BUCKET | S3 bucket name for findings storage |
 
 ## Execution Evidence
 
@@ -120,7 +142,7 @@ This reduces attacker dwell time from hours to milliseconds — a key L3 SOC cap
 ![Lambda test success](screenshots/Lambda%20test%20success%20response.png)
 
 ### Lambda Environment Variables
-![Lambda environment variables](screenshots/Lambda%20environment%20variables%20showing%20all%20API%20keys%20configured.png)
+![Lambda environment variables](screenshots/Environment%20variables%20(7)_Updated.png)
 
 ### CloudTrail Trail Active and Logging
 ![CloudTrail trail active](screenshots/cloudtrail_soc_trail_active.png)
@@ -151,11 +173,18 @@ This reduces attacker dwell time from hours to milliseconds — a key L3 SOC cap
 ### WAF Auto-Remediation — 5 IPs Blocked Automatically
 ![WAF auto-remediation](screenshots/waf_blocked_ip_auto_remediation.png)
 
+### S3 Findings — Auto-Saved Per Execution
+![S3 findings saved](screenshots/s3_soc_findings_saved.png)
+
+### SOC Live Dashboard
+![CloudWatch SOC dashboard](screenshots/cloudwatch_soc_dashboard.png)
+
 ## SOC Value
 
 - Detects full APT attack chain from execution to impact in a single log analysis
 - Automatically blocks malicious IPs in AWS WAF on Critical findings
 - Monitors real AWS account activity via CloudTrail integration
+- Persists all findings to S3 for audit trail and future analysis
 - Reduces analyst triage time through automated IOC extraction
 - Enhances detection accuracy using three threat intelligence sources
 - Produces structured output suitable for SIEM ingestion and correlation
@@ -165,7 +194,7 @@ This reduces attacker dwell time from hours to milliseconds — a key L3 SOC cap
 
 ## Summary
 
-This project demonstrates a production-grade cloud native SOC pipeline capable of automated log ingestion, modular detection engineering across 6 attack techniques, multi-source threat intelligence enrichment, real-time CloudTrail monitoring, automated alerting, and auto-remediation via AWS WAF — aligned with enterprise L2/L3 SOC operations.
+This project demonstrates a production-grade cloud native SOC pipeline capable of automated log ingestion, modular detection engineering across 6 attack techniques, multi-source threat intelligence enrichment, real-time CloudTrail monitoring, automated alerting, auto-remediation via AWS WAF, and persistent S3 storage — fully aligned with enterprise L2/L3 SOC operations.
 
 ## Author
 Solomon James — CyberSOLEX
