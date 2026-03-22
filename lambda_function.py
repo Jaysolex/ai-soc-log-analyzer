@@ -6,6 +6,9 @@ import urllib.request
 import process_behavior
 import network_anomalies
 import cloud_identity
+import ransomware
+import exfiltration
+import lateral_movement
 import enrichment
 import automation
 
@@ -41,6 +44,20 @@ def send_slack_alert(finding):
     except Exception as e:
         logger.error(f"Slack error: {str(e)}")
 
+def send_alert(finding):
+    severity = finding.get("severity")
+    if severity in ["High", "Critical"]:
+        if SNS_TOPIC_ARN:
+            sns = boto3.client("sns")
+            sns.publish(
+                TopicArn=SNS_TOPIC_ARN,
+                Subject=f"{severity.upper()} SEVERITY SOC ALERT",
+                Message=f"Severity: {finding.get('severity')}\nTechnique: {finding.get('technique')}\nDescription: {finding.get('description')}\nMITRE Phase: {finding.get('mitre_phase', 'N/A')}\nThreat Intel: {json.dumps(finding.get('threat_intel', {}), indent=2)}"
+            )
+            logger.info("SNS alert sent!")
+        if SLACK_WEBHOOK_URL:
+            send_slack_alert(finding)
+
 def lambda_handler(event, context):
     log = event.get("log", "")
 
@@ -48,6 +65,9 @@ def lambda_handler(event, context):
     results += process_behavior.analyze(log)
     results += network_anomalies.analyze(log)
     results += cloud_identity.analyze(log)
+    results += ransomware.analyze(log)
+    results += exfiltration.analyze(log)
+    results += lateral_movement.analyze(log)
 
     enriched = enrichment.enrich(results)
     deduped, report = automation.correlate(enriched)
@@ -60,24 +80,14 @@ def lambda_handler(event, context):
         logger.info(f"--- Finding {i} ---")
         logger.info(f"Severity: {finding.get('severity', 'N/A')}")
         logger.info(f"Technique: {finding.get('technique', 'N/A')}")
+        logger.info(f"Phase: {finding.get('mitre_phase', 'N/A')}")
         logger.info(f"Description: {finding.get('description', 'N/A')}")
         intel = finding.get("threat_intel", {})
         for ioc, data in intel.items():
             logger.info(f"  IOC: {ioc}")
             for source, result in data.items():
                 logger.info(f"    {source}: {json.dumps(result)}")
-
-        if finding.get("severity") == "High":
-            if SNS_TOPIC_ARN:
-                sns = boto3.client("sns")
-                sns.publish(
-                    TopicArn=SNS_TOPIC_ARN,
-                    Subject="HIGH SEVERITY SOC ALERT",
-                    Message=f"Severity: {finding.get('severity')}\nTechnique: {finding.get('technique')}\nDescription: {finding.get('description')}\nThreat Intel: {json.dumps(finding.get('threat_intel', {}), indent=2)}"
-                )
-                logger.info("SNS alert sent!")
-            if SLACK_WEBHOOK_URL:
-                send_slack_alert(finding)
+        send_alert(finding)
 
     return {
         "statusCode": 200,
