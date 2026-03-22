@@ -1,160 +1,86 @@
-import boto3
 import json
-import re
+import logging
 import os
+import boto3
 import urllib.request
-from datetime import datetime
+import process_behavior
+import network_anomalies
+import cloud_identity
+import enrichment
+import automation
 
-# 🔐 Secure API key from environment
-VT_API_KEY = os.getenv("VT_API_KEY", "")
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
-s3 = boto3.client("s3")
+SNS_TOPIC_ARN = os.environ.get("SNS_TOPIC_ARN", "")
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 
-BUCKET_NAME = "ai-soc-analysis-results-solomonjames"
-
-# ---------------------------
-# IOC EXTRACTION
-# ---------------------------
-def extract_iocs(text):
-    return {
-        "ips": re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", text),
-        "domains": re.findall(r"\b[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\b", text),
-        "hashes": re.findall(r"\b[a-fA-F0-9]{32,64}\b", text)
-    }
-
-
-# ---------------------------
-# MITRE MAPPING
-# ---------------------------
-def map_mitre(log_text):
-    techniques = {
-        "powershell -nop": "T1059.001",
-        "rundll32": "T1085",
-        "nmap": "T1046"
-    }
-
-    for key, tech in techniques.items():
-        if key in log_text.lower():
-            return tech
-
-    return "Unknown"
-
-
-# ---------------------------
-# VIRUSTOTAL LOOKUP
-# ---------------------------
-def vt_lookup(ioc_type, value):
-    if not VT_API_KEY:
-        return {"error": "No VT_API_KEY configured"}
-
+def send_slack_alert(finding):
     try:
-        url_map = {
-            "ips": f"https://www.virustotal.com/api/v3/ip_addresses/{value}",
-            "domains": f"https://www.virustotal.com/api/v3/domains/{value}",
-            "hashes": f"https://www.virustotal.com/api/v3/files/{value}"
+        message = {
+            "text": ":rotating_light: *HIGH SEVERITY SOC ALERT*",
+            "attachments": [
+                {
+                    "color": "#FF0000",
+                    "fields": [
+                        {"title": "Severity", "value": finding.get("severity"), "short": True},
+                        {"title": "Technique", "value": finding.get("technique", "N/A"), "short": True},
+                        {"title": "Description", "value": finding.get("description", "N/A"), "short": False},
+                        {"title": "IOCs", "value": json.dumps(finding.get("iocs", {})), "short": False}
+                    ]
+                }
+            ]
         }
-
-        url = url_map[ioc_type]
-
         req = urllib.request.Request(
-            url,
-            headers={"x-apikey": VT_API_KEY}
+            SLACK_WEBHOOK_URL,
+            data=json.dumps(message).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
         )
-
-        with urllib.request.urlopen(req, timeout=6) as response:
-            data = json.loads(response.read().decode())
-
-        stats = data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
-
-        malicious = stats.get("malicious", 0)
-        suspicious = stats.get("suspicious", 0)
-
-        # 🔥 SOC intelligence logic
-        if malicious > 3:
-            reputation = "malicious"
-        elif malicious > 0 or suspicious > 0:
-            reputation = "suspicious"
-        else:
-            reputation = "clean"
-
-        return {
-            "malicious": malicious,
-            "suspicious": suspicious,
-            "reputation": reputation
-        }
-
+        urllib.request.urlopen(req, timeout=5)
+        logger.info("Slack alert sent!")
     except Exception as e:
-        return {"error": str(e)}
+        logger.error(f"Slack error: {str(e)}")
 
-
-def save_to_s3(data):
-    try:
-        filename = f"analysis-{datetime.utcnow().isoformat()}.json"
-
-        s3.put_object(
-            Bucket=BUCKET_NAME,
-            Key=f"analysis-results/{filename}",
-            Body=json.dumps(data),
-            ContentType="application/json"
-        )
-
-        return {
-            "status": "saved",
-            "file": filename
-        }
-
-    except Exception as e:
-        return {
-            "error": str(e)
-        }
-
-
-# ---------------------------
-# MAIN HANDLER
-# ---------------------------
 def lambda_handler(event, context):
-    log_text = event.get("log", "")
+    log = event.get("log", "")
 
-    iocs = extract_iocs(log_text)
-    mitre_code = map_mitre(log_text)
+    results = []
+    results += process_behavior.analyze(log)
+    results += network_anomalies.analyze(log)
+    results += cloud_identity.analyze(log)
 
-    # 🔥 Threat intel enrichment
-    threat_intel = {}
+    enriched = enrichment.enrich(results)
+    deduped, report = automation.correlate(enriched)
 
-    for ioc_type, values in iocs.items():
-        for v in values:
-            threat_intel[v] = vt_lookup(ioc_type, v)
+    logger.info("=== SOC REPORT ===")
+    logger.info(f"Timestamp: {report['timestamp']}")
+    logger.info(f"Total Findings: {report['total_findings']}")
 
-    # 🔥 ADVANCED SEVERITY LOGIC (NEW)
-    severity = "Informational"
+    for i, finding in enumerate(deduped, 1):
+        logger.info(f"--- Finding {i} ---")
+        logger.info(f"Severity: {finding.get('severity', 'N/A')}")
+        logger.info(f"Technique: {finding.get('technique', 'N/A')}")
+        logger.info(f"Description: {finding.get('description', 'N/A')}")
+        intel = finding.get("threat_intel", {})
+        for ioc, data in intel.items():
+            logger.info(f"  IOC: {ioc}")
+            for source, result in data.items():
+                logger.info(f"    {source}: {json.dumps(result)}")
 
-    if mitre_code != "Unknown":
-        severity = "High"
-
-    for intel in threat_intel.values():
-        if intel.get("reputation") == "malicious":
-            severity = "Critical"
-            break
-        elif intel.get("reputation") == "suspicious" and severity != "Critical":
-            severity = "Medium"
-
-    response = {
-        "severity": severity,
-        "technique": mitre_code,
-        "summary": "SOC analysis with threat intel enrichment",
-        "iocs": iocs,
-        "threat_intel": threat_intel,
-        "timestamp": datetime.utcnow().isoformat() + "Z"
-    }
-
-#  S3 SAVE (FIXED POSITION)
-    s3_result = save_to_s3(response)
-    response["s3_upload"] = s3_result
-
-    print("Analysis complete:", json.dumps(response, indent=2))
+        if finding.get("severity") == "High":
+            if SNS_TOPIC_ARN:
+                sns = boto3.client("sns")
+                sns.publish(
+                    TopicArn=SNS_TOPIC_ARN,
+                    Subject="HIGH SEVERITY SOC ALERT",
+                    Message=f"Severity: {finding.get('severity')}\nTechnique: {finding.get('technique')}\nDescription: {finding.get('description')}\nThreat Intel: {json.dumps(finding.get('threat_intel', {}), indent=2)}"
+                )
+                logger.info("SNS alert sent!")
+            if SLACK_WEBHOOK_URL:
+                send_slack_alert(finding)
 
     return {
         "statusCode": 200,
-        "body": json.dumps(response)
+        "summary": report,
+        "results": deduped
     }
-    
