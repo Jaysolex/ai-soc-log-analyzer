@@ -3,6 +3,8 @@ import logging
 import os
 import boto3
 import urllib.request
+import base64
+import gzip
 import process_behavior
 import network_anomalies
 import cloud_identity
@@ -17,6 +19,16 @@ logger.setLevel(logging.INFO)
 
 SNS_TOPIC_ARN = os.environ.get("SNS_TOPIC_ARN", "")
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+
+def decode_cloudwatch_event(event):
+    try:
+        compressed = base64.b64decode(event["awslogs"]["data"])
+        decompressed = gzip.decompress(compressed)
+        log_data = json.loads(decompressed)
+        logs = [e["message"] for e in log_data.get("logEvents", [])]
+        return " ".join(logs)
+    except Exception:
+        return event.get("log", "")
 
 def send_slack_alert(finding):
     try:
@@ -59,7 +71,12 @@ def send_alert(finding):
             send_slack_alert(finding)
 
 def lambda_handler(event, context):
-    log = event.get("log", "")
+    if "awslogs" in event:
+        log = decode_cloudwatch_event(event)
+        logger.info("CloudTrail event received")
+    else:
+        log = event.get("log", "")
+        logger.info("Manual test event received")
 
     results = []
     results += process_behavior.analyze(log)
@@ -85,8 +102,11 @@ def lambda_handler(event, context):
         intel = finding.get("threat_intel", {})
         for ioc, data in intel.items():
             logger.info(f"  IOC: {ioc}")
-            for source, result in data.items():
-                logger.info(f"    {source}: {json.dumps(result)}")
+            if isinstance(data, dict):
+                for source, result in data.items():
+                    logger.info(f"    {source}: {json.dumps(result)}")
+            else:
+                logger.info(f"    value: {json.dumps(data)}")
         send_alert(finding)
 
     return {
