@@ -1,10 +1,10 @@
 # AI SOC Log Analyzer — Production Grade
 
-Serverless AI-powered Security Operations Center built on AWS Lambda with real-time threat detection, multi-source threat intelligence enrichment, and automated alerting across email and Slack.
+Serverless AI-powered Security Operations Center built on AWS Lambda with real-time threat detection, multi-source threat intelligence enrichment, automated alerting, and auto-remediation via AWS WAF.
 
 ## Architecture
 ```
-Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping → Threat Intel Enrichment → CloudWatch Logs + SNS Email + Slack Alert
+Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping → Threat Intel Enrichment → CloudWatch Logs + SNS Email + Slack Alert + WAF Auto-Block
 ```
 
 ## Features
@@ -16,6 +16,7 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 - SNS email alerts for High and Critical severity findings
 - Slack alerts to #soc-alerts channel
 - CloudTrail integration for real AWS activity monitoring
+- Auto-remediation via AWS WAF — automatically blocks malicious IPs on Critical findings
 - Serverless — runs on AWS Lambda, costs pennies per execution
 
 ## Detection Modules
@@ -35,7 +36,7 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 
 | File | Description |
 |------|-------------|
-| [lambda_function.py](lambda_function.py) | Main Lambda handler with SNS + Slack alerting |
+| [lambda_function.py](lambda_function.py) | Main Lambda handler with SNS + Slack + WAF alerting |
 | [mitre_mapping.json](mitre_mapping.json) | MITRE ATT&CK technique definitions |
 | [test_logs.json](test_logs.json) | Sample test log events |
 
@@ -54,6 +55,7 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 | CloudWatch Logs | Every Lambda execution |
 | SNS Email | High and Critical severity findings |
 | Slack #soc-alerts | High and Critical severity findings |
+| AWS WAF Auto-Block | Critical severity findings — IP blocked automatically |
 
 ## Full Attack Chain Simulation
 
@@ -73,9 +75,9 @@ The system was tested using a simulated APT attack log triggering all 6 detectio
 | PowerShell execution | High | T1059.001 | Execution | SNS + Slack |
 | Port scanning | Medium | T1046 | Discovery | — |
 | Identity check | Informational | — | — | — |
-| Ransomware behavior | Critical | T1486 | Impact | SNS + Slack |
-| Data exfiltration | Critical | T1041 | Exfiltration | SNS + Slack |
-| Lateral movement | Critical | T1021 | Lateral Movement | SNS + Slack |
+| Ransomware behavior | Critical | T1486 | Impact | SNS + Slack + WAF Block |
+| Data exfiltration | Critical | T1041 | Exfiltration | SNS + Slack + WAF Block |
+| Lateral movement | Critical | T1021 | Lateral Movement | SNS + Slack + WAF Block |
 
 ### Full Attack Chain Detected
 ```
@@ -91,6 +93,15 @@ AWS Account Activity → CloudTrail → CloudWatch Logs → Lambda → Detection
 
 This means the SOC now monitors real production AWS events including console logins, IAM role assumptions, Lambda invocations, KMS decryption events, and EC2 activity — not just simulated test logs.
 
+## Auto-Remediation
+
+When a Critical severity finding is detected, the SOC automatically blocks the malicious IP address in AWS WAF without any human intervention.
+```
+Critical Finding Detected → Extract IOCs → Block IP in WAF IP Set → Log Action
+```
+
+This reduces attacker dwell time from hours to milliseconds — a key L3 SOC capability. The system is smart enough to check if an IP is already blocked before attempting to add it, preventing duplicate entries.
+
 ## Environment Variables
 
 | Key | Description |
@@ -100,6 +111,8 @@ This means the SOC now monitors real production AWS events including console log
 | SHODAN_KEY | Shodan API key |
 | SNS_TOPIC_ARN | AWS SNS topic ARN for email alerts |
 | SLACK_WEBHOOK_URL | Slack incoming webhook URL |
+| WAF_IP_SET_ID | AWS WAF IP set ID for auto-blocking |
+| WAF_IP_SET_ARN | AWS WAF IP set ARN |
 
 ## Execution Evidence
 
@@ -135,9 +148,13 @@ This means the SOC now monitors real production AWS events including console log
 ![Slack alert](screenshots/Slack%20%23soc-alerts%20alert%20.png)
 ![Slack full alert](screenshots/SLACK%20ALART%20full.png)
 
+### WAF Auto-Remediation — 5 IPs Blocked Automatically
+![WAF auto-remediation](screenshots/waf_blocked_ip_auto_remediation.png)
+
 ## SOC Value
 
 - Detects full APT attack chain from execution to impact in a single log analysis
+- Automatically blocks malicious IPs in AWS WAF on Critical findings
 - Monitors real AWS account activity via CloudTrail integration
 - Reduces analyst triage time through automated IOC extraction
 - Enhances detection accuracy using three threat intelligence sources
@@ -148,7 +165,7 @@ This means the SOC now monitors real production AWS events including console log
 
 ## Summary
 
-This project demonstrates a production-grade cloud native SOC pipeline capable of automated log ingestion, modular detection engineering across 6 attack techniques, multi-source threat intelligence enrichment, real-time CloudTrail monitoring, and automated alerting aligned with enterprise SOC operations.
+This project demonstrates a production-grade cloud native SOC pipeline capable of automated log ingestion, modular detection engineering across 6 attack techniques, multi-source threat intelligence enrichment, real-time CloudTrail monitoring, automated alerting, and auto-remediation via AWS WAF — aligned with enterprise L2/L3 SOC operations.
 
 ## Author
 Solomon James — CyberSOLEX
