@@ -1,0 +1,4 @@
+{
+  "powershell -nop": "T1059.001",
+  "nmap": "T1046"
+}
