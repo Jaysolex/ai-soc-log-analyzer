@@ -15,6 +15,7 @@ Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping �
 - Structured CloudWatch logging with full IOC breakdown
 - SNS email alerts for High and Critical severity findings
 - Slack alerts to #soc-alerts channel
+- CloudTrail integration for real AWS activity monitoring
 - Serverless — runs on AWS Lambda, costs pennies per execution
 
 ## Detection Modules
@@ -81,6 +82,15 @@ The system was tested using a simulated APT attack log triggering all 6 detectio
 Execution → Discovery → Lateral Movement → Exfiltration → Ransomware (Impact)
 ```
 
+## CloudTrail Integration
+
+The SOC pipeline is connected to AWS CloudTrail for real-time monitoring of all AWS account activity. Every API call, role assumption, and service event is automatically ingested and analyzed by the detection engine.
+```
+AWS Account Activity → CloudTrail → CloudWatch Logs → Lambda → Detection + Alerting
+```
+
+This means the SOC now monitors real production AWS events including console logins, IAM role assumptions, Lambda invocations, KMS decryption events, and EC2 activity — not just simulated test logs.
+
 ## Environment Variables
 
 | Key | Description |
@@ -98,6 +108,15 @@ Execution → Discovery → Lateral Movement → Exfiltration → Ransomware (Im
 
 ### Lambda Environment Variables
 ![Lambda environment variables](screenshots/Lambda%20environment%20variables%20showing%20all%20API%20keys%20configured.png)
+
+### CloudTrail Trail Active and Logging
+![CloudTrail trail active](screenshots/cloudtrail_soc_trail_active.png)
+
+### Lambda CloudTrail Trigger Connected
+![Lambda CloudTrail trigger](screenshots/lambda_cloudtrail_trigger_connected.png)
+
+### Real CloudTrail Events Flowing into CloudWatch
+![CloudTrail live events](screenshots/cloudwatch_cloudtrail_events_live.png)
 
 ### CloudWatch Critical Detections
 ![CloudWatch critical](screenshots/Cloudwatch_Critical%20.png)
@@ -119,6 +138,7 @@ Execution → Discovery → Lateral Movement → Exfiltration → Ransomware (Im
 ## SOC Value
 
 - Detects full APT attack chain from execution to impact in a single log analysis
+- Monitors real AWS account activity via CloudTrail integration
 - Reduces analyst triage time through automated IOC extraction
 - Enhances detection accuracy using three threat intelligence sources
 - Produces structured output suitable for SIEM ingestion and correlation
@@ -128,7 +148,7 @@ Execution → Discovery → Lateral Movement → Exfiltration → Ransomware (Im
 
 ## Summary
 
-This project demonstrates a production-grade cloud native SOC pipeline capable of automated log ingestion, modular detection engineering across 6 attack techniques, multi-source threat intelligence enrichment, and real-time alerting aligned with enterprise SOC operations.
+This project demonstrates a production-grade cloud native SOC pipeline capable of automated log ingestion, modular detection engineering across 6 attack techniques, multi-source threat intelligence enrichment, real-time CloudTrail monitoring, and automated alerting aligned with enterprise SOC operations.
 
 ## Author
 Solomon James — CyberSOLEX
