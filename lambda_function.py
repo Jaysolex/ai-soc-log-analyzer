@@ -5,6 +5,7 @@ import boto3
 import urllib.request
 import base64
 import gzip
+from datetime import datetime
 import process_behavior
 import network_anomalies
 import cloud_identity
@@ -20,7 +21,7 @@ logger.setLevel(logging.INFO)
 SNS_TOPIC_ARN = os.environ.get("SNS_TOPIC_ARN", "")
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 WAF_IP_SET_ID = os.environ.get("WAF_IP_SET_ID", "")
-WAF_IP_SET_ARN = os.environ.get("WAF_IP_SET_ARN", "")
+S3_BUCKET = os.environ.get("S3_BUCKET", "")
 
 def decode_cloudwatch_event(event):
     try:
@@ -32,6 +33,26 @@ def decode_cloudwatch_event(event):
     except Exception:
         return event.get("log", "")
 
+def save_to_s3(report, deduped):
+    try:
+        s3 = boto3.client("s3")
+        timestamp = datetime.utcnow().strftime("%Y/%m/%d/%H-%M-%S")
+        filename = f"soc-findings/{timestamp}.json"
+        data = {
+            "timestamp": report["timestamp"],
+            "total_findings": report["total_findings"],
+            "findings": deduped
+        }
+        s3.put_object(
+            Bucket=S3_BUCKET,
+            Key=filename,
+            Body=json.dumps(data, indent=2),
+            ContentType="application/json"
+        )
+        logger.info(f"S3: Saved findings to {filename}")
+    except Exception as e:
+        logger.error(f"S3 error: {str(e)}")
+
 def block_ip_in_waf(ip):
     try:
         waf = boto3.client("wafv2", region_name="eu-north-1")
@@ -40,13 +61,11 @@ def block_ip_in_waf(ip):
             Scope="REGIONAL",
             Id=WAF_IP_SET_ID
         )["LockToken"]
-
         existing = waf.get_ip_set(
             Name="soc-blocked-ips",
             Scope="REGIONAL",
             Id=WAF_IP_SET_ID
         )["IPSet"]["Addresses"]
-
         cidr = f"{ip}/32"
         if cidr not in existing:
             existing.append(cidr)
@@ -102,7 +121,6 @@ def send_alert(finding):
             logger.info("SNS alert sent!")
         if SLACK_WEBHOOK_URL:
             send_slack_alert(finding)
-
     if severity == "Critical" and WAF_IP_SET_ID:
         ips = finding.get("iocs", {}).get("ips", [])
         for ip in ips:
@@ -146,6 +164,9 @@ def lambda_handler(event, context):
             else:
                 logger.info(f"    value: {json.dumps(data)}")
         send_alert(finding)
+
+    if S3_BUCKET:
+        save_to_s3(report, deduped)
 
     return {
         "statusCode": 200,
