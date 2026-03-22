@@ -1,0 +1,14 @@
+{
+  "powershell -nop": "T1059.001",
+  "nmap": "T1046",
+  "vssadmin delete shadows": "T1486",
+  "bcdedit /set recoveryenabled no": "T1486",
+  "wmic shadowcopy delete": "T1486",
+  "psexec": "T1021",
+  "mimikatz": "T1021",
+  "curl -d": "T1041",
+  "pastebin.com": "T1041",
+  "invoke-webrequest": "T1041",
+  "rdesktop": "T1021",
+  "net use": "T1021"
+}
