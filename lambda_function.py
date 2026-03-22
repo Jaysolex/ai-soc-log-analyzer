@@ -19,6 +19,8 @@ logger.setLevel(logging.INFO)
 
 SNS_TOPIC_ARN = os.environ.get("SNS_TOPIC_ARN", "")
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
+WAF_IP_SET_ID = os.environ.get("WAF_IP_SET_ID", "")
+WAF_IP_SET_ARN = os.environ.get("WAF_IP_SET_ARN", "")
 
 def decode_cloudwatch_event(event):
     try:
@@ -29,6 +31,37 @@ def decode_cloudwatch_event(event):
         return " ".join(logs)
     except Exception:
         return event.get("log", "")
+
+def block_ip_in_waf(ip):
+    try:
+        waf = boto3.client("wafv2", region_name="eu-north-1")
+        token = waf.get_ip_set(
+            Name="soc-blocked-ips",
+            Scope="REGIONAL",
+            Id=WAF_IP_SET_ID
+        )["LockToken"]
+
+        existing = waf.get_ip_set(
+            Name="soc-blocked-ips",
+            Scope="REGIONAL",
+            Id=WAF_IP_SET_ID
+        )["IPSet"]["Addresses"]
+
+        cidr = f"{ip}/32"
+        if cidr not in existing:
+            existing.append(cidr)
+            waf.update_ip_set(
+                Name="soc-blocked-ips",
+                Scope="REGIONAL",
+                Id=WAF_IP_SET_ID,
+                Addresses=existing,
+                LockToken=token
+            )
+            logger.info(f"WAF: Blocked IP {ip}")
+        else:
+            logger.info(f"WAF: IP {ip} already blocked")
+    except Exception as e:
+        logger.error(f"WAF block error: {str(e)}")
 
 def send_slack_alert(finding):
     try:
@@ -69,6 +102,11 @@ def send_alert(finding):
             logger.info("SNS alert sent!")
         if SLACK_WEBHOOK_URL:
             send_slack_alert(finding)
+
+    if severity == "Critical" and WAF_IP_SET_ID:
+        ips = finding.get("iocs", {}).get("ips", [])
+        for ip in ips:
+            block_ip_in_waf(ip)
 
 def lambda_handler(event, context):
     if "awslogs" in event:
