@@ -2,10 +2,37 @@
 
 Serverless AI-powered Security Operations Center built on AWS Lambda with real-time threat detection, multi-source threat intelligence enrichment, automated alerting, auto-remediation via AWS WAF, and persistent S3 storage.
 
+## 💡 Use Case
+
+Simulates a real-world SOC pipeline that detects and responds to multi-stage attacks in real time, reducing attacker dwell time through automation.
+
 
 ## 📸 Architecture
 ![SOC Architecture](./screenshots/architecture_soc_pipeline.png)
 
+
+## ⚙️ How It Works
+
+1. Logs are ingested from AWS CloudTrail and application sources  
+2. AWS Lambda processes events in real time  
+3. Detection engine identifies suspicious behaviors  
+4. Events are mapped to MITRE ATT&CK techniques  
+5. IOCs are enriched using threat intelligence APIs  
+6. Alerts are generated (SNS + Slack)  
+7. Critical threats trigger automatic IP blocking via AWS WAF  
+8. All findings are stored in S3 for audit and analysis
+
+
+## 🎯 Skills Demonstrated
+
+- Detection Engineering (MITRE ATT&CK)
+- Cloud Security Monitoring (AWS CloudTrail)
+- Incident Response Automation
+- Threat Intelligence Enrichment
+- Serverless Architecture (AWS Lambda)
+- Security Alerting & Triage (SNS, Slack)
+- Auto-Remediation (AWS WAF)
+- Log Analysis & IOC Extraction
 
 ## Features
 
