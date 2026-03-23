@@ -2,10 +2,10 @@
 
 Serverless AI-powered Security Operations Center built on AWS Lambda with real-time threat detection, multi-source threat intelligence enrichment, automated alerting, auto-remediation via AWS WAF, and persistent S3 storage.
 
-## Architecture
-```
-Log Input → AWS Lambda → Modular Detection Engine → MITRE ATT&CK Mapping → Threat Intel Enrichment → CloudWatch Logs + SNS Email + Slack Alert + WAF Auto-Block + S3 Storage
-```
+
+## 📸 Architecture
+![SOC Architecture](./screenshots/architecture_soc_pipeline.png)
+
 
 ## Features
 
